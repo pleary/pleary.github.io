@@ -1,0 +1,12 @@
+# Site settings
+title: another developer with a blog...
+email: patrick.r.leary@gmail.com
+description: >
+  <a href="https://github.com/pleary">pleary</a> is a software developer from Woods Hole, MA.
+  Occasionally he does something worth sharing.
+baseurl: "" # the subpath of your site, e.g. /blog/
+url: "http://pleary.github.io" # the base hostname & protocol for your site
+github_username:  pleary
+
+# Build settings
+markdown: kramdown

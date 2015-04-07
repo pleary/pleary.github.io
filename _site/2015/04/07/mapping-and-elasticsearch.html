@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Mapping and Elasticsearch</title>
+  <meta name="description" content="PostgreSQL and PostGIS are the defacto standard for mapping databases. “But Elasticsearch is webscale” I hear you saying. I’m with you, database romanticist....">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://pleary.github.io/2015/04/07/mapping-and-elasticsearch.html">
+  <link rel="alternate" type="application/rss+xml" title="another developer with a blog..." href="http://pleary.github.io/feed.xml" />
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+
+    <a class="site-title" href="/">another developer with a blog...</a>
+
+    <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+
+      <div class="trigger">
+        
+          
+        
+          
+        
+          
+        
+ 
+        
+          <a href="https://github.com/pleary">
+            <span class="icon  icon--github">
+              <svg viewBox="0 0 16 16">
+                <path fill="#828282" d="M7.999,0.431c-4.285,0-7.76,3.474-7.76,7.761 c0,3.428,2.223,6.337,5.307,7.363c0.388,0.071,0.53-0.168,0.53-0.374c0-0.184-0.007-0.672-0.01-1.32 c-2.159,0.469-2.614-1.04-2.614-1.04c-0.353-0.896-0.862-1.135-0.862-1.135c-0.705-0.481,0.053-0.472,0.053-0.472 c0.779,0.055,1.189,0.8,1.189,0.8c0.692,1.186,1.816,0.843,2.258,0.645c0.071-0.502,0.271-0.843,0.493-1.037 C4.86,11.425,3.049,10.76,3.049,7.786c0-0.847,0.302-1.54,0.799-2.082C3.768,5.507,3.501,4.718,3.924,3.65 c0,0,0.652-0.209,2.134,0.796C6.677,4.273,7.34,4.187,8,4.184c0.659,0.003,1.323,0.089,1.943,0.261 c1.482-1.004,2.132-0.796,2.132-0.796c0.423,1.068,0.157,1.857,0.077,2.054c0.497,0.542,0.798,1.235,0.798,2.082 c0,2.981-1.814,3.637-3.543,3.829c0.279,0.24,0.527,0.713,0.527,1.437c0,1.037-0.01,1.874-0.01,2.129 c0,0.208,0.14,0.449,0.534,0.373c3.081-1.028,5.302-3.935,5.302-7.362C15.76,3.906,12.285,0.431,7.999,0.431z"/>
+              </svg>
+            </span>
+
+            <span class="username">pleary on Github</span>
+          </a>
+        
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+
+  <header class="post-header">
+    <h1 class="post-title">Mapping and Elasticsearch</h1>
+    <p class="post-meta">Apr 7, 2015</p>
+  </header>
+
+  <article class="post-content">
+    <p>PostgreSQL and PostGIS are the defacto standard for mapping databases. “But Elasticsearch is webscale” I hear you saying. I’m with you, database romanticist. I couldn’t find a ton of geospatial projects based on Elasticsearch, so I did some research and decided to post a little of what helped me get started. This post explores some of the basics storing and querying geospatial data in Elasticsearch.</p>
+
+<p><a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/getting-started.html">Elasticsearch</a> is very easy to <a href="https://www.elastic.co/downloads/elasticsearch">install</a>. Make sure you have a working install and that you can view <a href="http://localhost:9200/">http://localhost:9200/</a>.</p>
+
+<p>We can start from a fresh index:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XPOST</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  settings: {</span>
+<span class="s1">    number_of_shards: 1,</span>
+<span class="s1">    number_of_replicas: 1</span>
+<span class="s1">  },</span>
+<span class="s1">  mappings: {</span>
+<span class="s1">    point: {</span>
+<span class="s1">      properties: {</span>
+<span class="s1">        id: { type: &quot;integer&quot; },</span>
+<span class="s1">        name: { type: &quot;string&quot; },</span>
+<span class="s1">        location: {</span>
+<span class="s1">          type: &quot;geo_point&quot;,</span>
+<span class="s1">          lat_lon: true,</span>
+<span class="s1">          geohash: true,</span>
+<span class="s1">          geohash_precision:10</span>
+<span class="s1">        },</span>
+<span class="s1">        geojson: { type: &quot;geo_shape&quot; }</span>
+<span class="s1">      }</span>
+<span class="s1">    }</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>This will create a new index named geospatial, which will contain documents of type point with four properties, id, name, location, and geojson. But first, there are some other settings worth noting - <a href="http://www.elastic.co/guide/en/elasticsearch/guide/master/shard-scale.html">shards</a> and <a href="http://www.elastic.co/guide/en/elasticsearch/guide/master/replica-shards.html">replicas</a>. These are awesome features that you should totally check out, after finishing this post. You’ll also want to get familiar with the <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.x/docs-index_.html">Elasticsearch APIs</a>. For example let’s take a look at the index we just created <a href="http://localhost:9200/geospatial/">http://localhost:9200/geospatial/</a>.</p>
+
+<p>Back to the fields. ID and name are pretty standard, boring really. Next is a <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.3/mapping-geo-point-type.html">geo_point</a>, which enables lat_lon indexing for faster geo distance and bounding box filters, and <a href="http://www.elastic.co/guide/en/elasticsearch/guide/master/geohashes.html">geohash</a> indexing for fast grid and lat/lon/zoom searches. Lastly there is a <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.3/mapping-geo-shape-type.html">geo_shape</a>, which can use <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.4/query-dsl-geo-shape-filter.html">geo_shape filters</a> to compare with other indexed shapes, for example complex polygons like countries. While similar, there are some features, such as geo_shape filters, which apply to only points or shapes. For this demonstration we are using both and storing different representations of the same data in each field.</p>
+
+<p>In fact, let’s make a complex polygon now. We’ll start by creating a new index for places:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XPOST</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">places</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  mappings: {</span>
+<span class="s1">    place: {</span>
+<span class="s1">      properties: {</span>
+<span class="s1">        id: { type: &quot;integer&quot; },</span>
+<span class="s1">        geojson: {</span>
+<span class="s1">          type: &quot;geo_shape&quot;</span>
+<span class="s1">        }</span>
+<span class="s1">      }</span>
+<span class="s1">    }</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>We can now post a new document representing a place:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XPOST</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">places</span><span class="o">/</span><span class="n">place</span><span class="o">/</span><span class="mi">1</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  &quot;id&quot;: 1,</span>
+<span class="s1">  &quot;geojson&quot;: {</span>
+<span class="s1">    &quot;type&quot;: &quot;Polygon&quot;,</span>
+<span class="s1">    &quot;coordinates&quot;: [[[-1,51], [-1,52], [-2,52], [-2,51], [-1,51]]]</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>And now create two points, one that falls inside the place and another that falls outside:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XPOST</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span><span class="o">/</span><span class="n">point</span><span class="o">/</span><span class="mi">1</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  &quot;id&quot;: 1,</span>
+<span class="s1">  &quot;name&quot;: &quot;Gamehenge&quot;,</span>
+<span class="s1">  &quot;location&quot;: &quot;51.178,-1.826&quot;,</span>
+<span class="s1">  &quot;geojson&quot;: {</span>
+<span class="s1">    &quot;type&quot;: &quot;Point&quot;,</span>
+<span class="s1">    &quot;coordinates&quot;: [-1.826,51.178]</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span>
+
+<span class="n">curl</span> <span class="o">-</span><span class="no">XPOST</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span><span class="o">/</span><span class="n">point</span><span class="o">/</span><span class="mi">2</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  &quot;id&quot;: 2,</span>
+<span class="s1">  &quot;name&quot;: &quot;Pyramids&quot;,</span>
+<span class="s1">  &quot;location&quot;: &quot;29.975,31.135&quot;,</span>
+<span class="s1">  &quot;geojson&quot;: {</span>
+<span class="s1">    &quot;type&quot;: &quot;Point&quot;,</span>
+<span class="s1">    &quot;coordinates&quot;: [31.135,29.975]</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>Great, so now we can store points and polygons. Notice above the different formats for geo_point and geo_shape which uses GeoJSON. GeoJSON expects lon, lat but geo_point expect lat, lon. Unfortunate, confusing, and important.</p>
+
+<p>Time for some querying. Elasticsearch can <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-geo-bounding-box-filter.html">query bounding boxes</a>:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XGET</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span><span class="o">/</span><span class="n">_search</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  filter: {</span>
+<span class="s1">    geo_bounding_box: {</span>
+<span class="s1">      location: {</span>
+<span class="s1">        bottom_left: [ -1.9, 51.1],</span>
+<span class="s1">        top_right: [ -1.8, 51.2]</span>
+<span class="s1">      }</span>
+<span class="s1">    }</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>It can also do <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.x/query-dsl-geo-distance-filter.html">geo distance</a> queries:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XGET</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span><span class="o">/</span><span class="n">_search</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  filter: {</span>
+<span class="s1">    geo_distance: {</span>
+<span class="s1">      distance: &quot;100km&quot;,</span>
+<span class="s1">      location: &quot;51,-2&quot;</span>
+<span class="s1">    }</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>And we can <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.x/query-dsl-geo-shape-filter.html#_pre_indexed_shape">compare the geo_shape</a> fields with our stored polygons to find all points within a place:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XGET</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span><span class="o">/</span><span class="n">_search</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  filter: {</span>
+<span class="s1">    geo_shape: {</span>
+<span class="s1">      geojson: {</span>
+<span class="s1">        indexed_shape: {</span>
+<span class="s1">          id: 1,</span>
+<span class="s1">          type: &quot;place&quot;,</span>
+<span class="s1">          index: &quot;places&quot;,</span>
+<span class="s1">          path: &quot;geojson&quot;</span>
+<span class="s1">        }</span>
+<span class="s1">      }   </span>
+<span class="s1">    }</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>Or you can just make a <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.x/query-dsl-geo-polygon-filter.html">polygon on the fly</a> and query that with:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XGET</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span><span class="o">/</span><span class="n">_search</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  filter: {</span>
+<span class="s1">    geo_polygon: {</span>
+<span class="s1">      location: {</span>
+<span class="s1">        points: [</span>
+<span class="s1">          [-1,50],</span>
+<span class="s1">          [-2,50],</span>
+<span class="s1">          [-2,52]</span>
+<span class="s1">        ]</span>
+<span class="s1">      }   </span>
+<span class="s1">    }</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>The <a href="http://en.wikipedia.org/wiki/Geohash">geohases</a> that were indexed with location can be <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.4/query-dsl-geohash-cell-filter.html">queried directly</a> or <a href="http://www.elastic.co/guide/en/elasticsearch/reference/1.4/search-aggregations-bucket-geohashgrid-aggregation.html">used in aggregations</a> to return the geohash cells and counts for results of a query:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XGET</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span><span class="o">/</span><span class="n">_search</span> <span class="o">-</span><span class="n">d</span> <span class="s1">&#39;{</span>
+<span class="s1">  aggregations: {</span>
+<span class="s1">    geohashes: {</span>
+<span class="s1">      geohash_grid: {</span>
+<span class="s1">        field: &quot;location&quot;,</span>
+<span class="s1">        precision: 1</span>
+<span class="s1">      }   </span>
+<span class="s1">    }</span>
+<span class="s1">  }</span>
+<span class="s1">}&#39;</span></code></pre></div>
+
+<p>Geohashes represent smaller and more specific areas the longer the hash is. We declared the index to have a precision of 10, so the smallest cells (longest geohashes) will represent roughly one square meter.</p>
+
+<p>So far I am very impressed with ease of use, functionality, performance and more from Elasticsearch. In my initial testing, with around 1.2 million points and tens of thousands of places of various sizes and complexities, for most queries I am seeing performance at least on par with PostGIS. But some queries for points within large polygons are up to 30 times faster in Elastisearch.</p>
+
+<p>Again, I haven’t seen a lot of use of Elasticsearch or geohashes in geospatial web applications so please share some examples if you have them. I’d love to see what other people are up to. I will make a follow-up post describing some work I’ve been doing on an Elasticsearch-based map tileserver using Node.js and <a href="https://github.com/mapnik/node-mapnik">node-mapnik</a>.</p>
+
+<p>Oh, and if you want to destroy all the indices and data created above:</p>
+
+<div class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="n">curl</span> <span class="o">-</span><span class="no">XDELETE</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">geospatial</span>
+<span class="n">curl</span> <span class="o">-</span><span class="no">XDELETE</span> <span class="ss">localhost</span><span class="p">:</span><span class="mi">9200</span><span class="o">/</span><span class="n">places</span></code></pre></div>
+
+
+  </article>
+
+</div>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+
+  <div class="wrapper">
+    <div class="footer-col-wrapper">
+      <div class="footer-col  footer-col">
+        <p class="text"><a href="https://github.com/pleary">pleary</a> is a software developer from Woods Hole, MA. Occasionally he does something worth sharing.
+</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+
+
+  </body>
+
+</html>

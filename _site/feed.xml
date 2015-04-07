@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>another developer with a blog...</title>
+    <description>&lt;a href=&quot;https://github.com/pleary&quot;&gt;pleary&lt;/a&gt; is a software developer from Woods Hole, MA. Occasionally he does something worth sharing.
+</description>
+    <link>http://pleary.github.io/</link>
+    <atom:link href="http://pleary.github.io/feed.xml" rel="self" type="application/rss+xml"/>
+    <pubDate>Tue, 07 Apr 2015 12:19:18 -0400</pubDate>
+    <lastBuildDate>Tue, 07 Apr 2015 12:19:18 -0400</lastBuildDate>
+    <generator>Jekyll v2.5.3</generator>
+    
+      <item>
+        <title>Mapping and Elasticsearch</title>
+        <description>&lt;p&gt;PostgreSQL and PostGIS are the defacto standard for mapping databases. “But Elasticsearch is webscale” I hear you saying. I’m with you, database romanticist. I couldn’t find a ton of geospatial projects based on Elasticsearch, so I did some research and decided to post a little of what helped me get started. This post explores some of the basics storing and querying geospatial data in Elasticsearch.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/current/getting-started.html&quot;&gt;Elasticsearch&lt;/a&gt; is very easy to &lt;a href=&quot;https://www.elastic.co/downloads/elasticsearch&quot;&gt;install&lt;/a&gt;. Make sure you have a working install and that you can view &lt;a href=&quot;http://localhost:9200/&quot;&gt;http://localhost:9200/&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;We can start from a fresh index:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XPOST&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  settings: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    number_of_shards: 1,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    number_of_replicas: 1&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  },&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  mappings: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    point: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      properties: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        id: { type: &amp;quot;integer&amp;quot; },&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        name: { type: &amp;quot;string&amp;quot; },&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        location: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          type: &amp;quot;geo_point&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          lat_lon: true,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          geohash: true,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          geohash_precision:10&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        },&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        geojson: { type: &amp;quot;geo_shape&amp;quot; }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;This will create a new index named geospatial, which will contain documents of type point with four properties, id, name, location, and geojson. But first, there are some other settings worth noting - &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/guide/master/shard-scale.html&quot;&gt;shards&lt;/a&gt; and &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/guide/master/replica-shards.html&quot;&gt;replicas&lt;/a&gt;. These are awesome features that you should totally check out, after finishing this post. You’ll also want to get familiar with the &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.x/docs-index_.html&quot;&gt;Elasticsearch APIs&lt;/a&gt;. For example let’s take a look at the index we just created &lt;a href=&quot;http://localhost:9200/geospatial/&quot;&gt;http://localhost:9200/geospatial/&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Back to the fields. ID and name are pretty standard, boring really. Next is a &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.3/mapping-geo-point-type.html&quot;&gt;geo_point&lt;/a&gt;, which enables lat_lon indexing for faster geo distance and bounding box filters, and &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/guide/master/geohashes.html&quot;&gt;geohash&lt;/a&gt; indexing for fast grid and lat/lon/zoom searches. Lastly there is a &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.3/mapping-geo-shape-type.html&quot;&gt;geo_shape&lt;/a&gt;, which can use &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.4/query-dsl-geo-shape-filter.html&quot;&gt;geo_shape filters&lt;/a&gt; to compare with other indexed shapes, for example complex polygons like countries. While similar, there are some features, such as geo_shape filters, which apply to only points or shapes. For this demonstration we are using both and storing different representations of the same data in each field.&lt;/p&gt;
+
+&lt;p&gt;In fact, let’s make a complex polygon now. We’ll start by creating a new index for places:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XPOST&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;places&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  mappings: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    place: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      properties: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        id: { type: &amp;quot;integer&amp;quot; },&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        geojson: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          type: &amp;quot;geo_shape&amp;quot;&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;We can now post a new document representing a place:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XPOST&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;places&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;place&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;id&amp;quot;: 1,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;geojson&amp;quot;: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    &amp;quot;type&amp;quot;: &amp;quot;Polygon&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    &amp;quot;coordinates&amp;quot;: [[[-1,51], [-1,52], [-2,52], [-2,51], [-1,51]]]&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;And now create two points, one that falls inside the place and another that falls outside:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XPOST&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;point&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;id&amp;quot;: 1,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;name&amp;quot;: &amp;quot;Gamehenge&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;location&amp;quot;: &amp;quot;51.178,-1.826&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;geojson&amp;quot;: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    &amp;quot;type&amp;quot;: &amp;quot;Point&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    &amp;quot;coordinates&amp;quot;: [-1.826,51.178]&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XPOST&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;point&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;id&amp;quot;: 2,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;name&amp;quot;: &amp;quot;Pyramids&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;location&amp;quot;: &amp;quot;29.975,31.135&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  &amp;quot;geojson&amp;quot;: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    &amp;quot;type&amp;quot;: &amp;quot;Point&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    &amp;quot;coordinates&amp;quot;: [31.135,29.975]&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Great, so now we can store points and polygons. Notice above the different formats for geo_point and geo_shape which uses GeoJSON. GeoJSON expects lon, lat but geo_point expect lat, lon. Unfortunate, confusing, and important.&lt;/p&gt;
+
+&lt;p&gt;Time for some querying. Elasticsearch can &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-geo-bounding-box-filter.html&quot;&gt;query bounding boxes&lt;/a&gt;:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XGET&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_search&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  filter: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    geo_bounding_box: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      location: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        bottom_left: [ -1.9, 51.1],&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        top_right: [ -1.8, 51.2]&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;It can also do &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.x/query-dsl-geo-distance-filter.html&quot;&gt;geo distance&lt;/a&gt; queries:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XGET&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_search&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  filter: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    geo_distance: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      distance: &amp;quot;100km&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      location: &amp;quot;51,-2&amp;quot;&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;And we can &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.x/query-dsl-geo-shape-filter.html#_pre_indexed_shape&quot;&gt;compare the geo_shape&lt;/a&gt; fields with our stored polygons to find all points within a place:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XGET&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_search&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  filter: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    geo_shape: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      geojson: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        indexed_shape: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          id: 1,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          type: &amp;quot;place&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          index: &amp;quot;places&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          path: &amp;quot;geojson&amp;quot;&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      }   &lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Or you can just make a &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.x/query-dsl-geo-polygon-filter.html&quot;&gt;polygon on the fly&lt;/a&gt; and query that with:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XGET&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_search&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  filter: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    geo_polygon: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      location: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        points: [&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          [-1,50],&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          [-2,50],&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;          [-2,52]&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        ]&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      }   &lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;The &lt;a href=&quot;http://en.wikipedia.org/wiki/Geohash&quot;&gt;geohases&lt;/a&gt; that were indexed with location can be &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.4/query-dsl-geohash-cell-filter.html&quot;&gt;queried directly&lt;/a&gt; or &lt;a href=&quot;http://www.elastic.co/guide/en/elasticsearch/reference/1.4/search-aggregations-bucket-geohashgrid-aggregation.html&quot;&gt;used in aggregations&lt;/a&gt; to return the geohash cells and counts for results of a query:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XGET&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;_search&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;s1&quot;&gt;&amp;#39;{&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  aggregations: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    geohashes: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      geohash_grid: {&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        field: &amp;quot;location&amp;quot;,&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;        precision: 1&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;      }   &lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;    }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;  }&lt;/span&gt;
+&lt;span class=&quot;s1&quot;&gt;}&amp;#39;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+&lt;p&gt;Geohashes represent smaller and more specific areas the longer the hash is. We declared the index to have a precision of 10, so the smallest cells (longest geohashes) will represent roughly one square meter.&lt;/p&gt;
+
+&lt;p&gt;So far I am very impressed with ease of use, functionality, performance and more from Elasticsearch. In my initial testing, with around 1.2 million points and tens of thousands of places of various sizes and complexities, for most queries I am seeing performance at least on par with PostGIS. But some queries for points within large polygons are up to 30 times faster in Elastisearch.&lt;/p&gt;
+
+&lt;p&gt;Again, I haven’t seen a lot of use of Elasticsearch or geohashes in geospatial web applications so please share some examples if you have them. I’d love to see what other people are up to. I will make a follow-up post describing some work I’ve been doing on an Elasticsearch-based map tileserver using Node.js and &lt;a href=&quot;https://github.com/mapnik/node-mapnik&quot;&gt;node-mapnik&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Oh, and if you want to destroy all the indices and data created above:&lt;/p&gt;
+
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-ruby&quot; data-lang=&quot;ruby&quot;&gt;&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XDELETE&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;geospatial&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;curl&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;no&quot;&gt;XDELETE&lt;/span&gt; &lt;span class=&quot;ss&quot;&gt;localhost&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9200&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;places&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+
+</description>
+        <pubDate>Tue, 07 Apr 2015 07:37:45 -0400</pubDate>
+        <link>http://pleary.github.io/2015/04/07/mapping-and-elasticsearch.html</link>
+        <guid isPermaLink="true">http://pleary.github.io/2015/04/07/mapping-and-elasticsearch.html</guid>
+        
+        
+      </item>
+    
+  </channel>
+</rss>
