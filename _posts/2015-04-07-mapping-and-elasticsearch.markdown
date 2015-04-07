@@ -1,6 +1,7 @@
 ---
 layout: post
 title:  "Mapping and Elasticsearch"
+comments: true
 date:   2015-04-07 11:37:45
 ---
 PostgreSQL and PostGIS are the defacto standard for mapping databases. "But Elasticsearch is webscale" I hear you saying. I'm with you, database romanticist. I couldn't find a ton of geospatial projects based on Elasticsearch, so I did some research and decided to post a little of what helped me get started. This post explores some of the basics storing and querying geospatial data in Elasticsearch.
